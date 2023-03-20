@@ -1,123 +1,109 @@
 
-window.onload = async () => {
-  var rows = null;
-  const apiCall = () =>
-    new Promise((resolve, rejects) => {
-      const url = "https://arghyam-be.tridz.in/api/search";
-      fetch(url)
-        .then((response) => response.json())
-        .then((data) => {
-          rows = data.rows;
-          resolve(rows);
-        })
-        .catch((error) => {
-          console.log(error);
-          rejects("api-call-failed");
-        });
+document.addEventListener("DOMContentLoaded", () => {
+  const apiCall = async () => {
+    try {
+      const response = await fetch("https://arghyam-be.tridz.in/api/search");
+      const data = await response.json();
+      return data.rows;
+    } catch (error) {
+      console.error(error);
+      throw new Error("api-call-failed");
+    }
+  };
+
+  const renderCard = (row) => {
+    const card = document.createElement("div");
+    card.classList.add("card", "mb-3");
+
+    const cardBody = document.createElement("div");
+    cardBody.classList.add("card-body");
+
+    const cardTitle = document.createElement("h5");
+    cardTitle.classList.add("card-title");
+    cardTitle.textContent = row.title;
+
+    const cardText = document.createElement("p");
+    cardText.classList.add("card-text");
+    cardText.innerHTML = row.body;
+
+    cardBody.appendChild(cardTitle);
+    cardBody.appendChild(cardText);
+    card.appendChild(cardBody);
+
+    card.addEventListener("click", () => {
+      window.location.href = `details.html?id=${row.uuid}`;
     });
-  apiCall();
 
-  //detail page script start
-  if (window.location.pathname == "/details.html") {
-    console.log(window.location.pathname);
-    const url = new URL(window.location.href);
-    console.log(url);
-    const params1 = new URLSearchParams(url.search);
-    console.log("params1.get('id')-->", await params1);
-    console.log(params1.get("id"));
-    apiCall()
-      .then((e) => {
-        console.log("data", rows);
-        let value = rows.filter((e) => e.uuid == params1.get("id"));
-        console.log("value is ", value);
-        if (value) {
-          document.querySelector("#title-single-blog").textContent =
-            value[0].title;
-          document.querySelector("#body-single-blog").innerHTML = value[0].body;
-        }
-      })
-      .catch((e) => {
-        console.error("api call failed");
-      });
-  } else {
-    apiCall().then((e) => {
-      const container = document.querySelector(".container");
+    return card;
+  };
 
-      rows.forEach((row) => {
-        const card = document.createElement("div");
-        card.classList.add("card", "mb-3");
+  const renderDetailsPage = async (params) => {
+    const data = await apiCall();
+    const value = data.find((e) => e.uuid === params.get("id"));
+    if (value) {
+      document.querySelector("#title-single-blog").textContent = value.title;
+      document.querySelector("#body-single-blog").innerHTML = value.body;
+    }
+  };
 
-        const cardBody = document.createElement("div");
-        cardBody.classList.add("card-body");
+  const renderHomePage = async () => {
+    const data = await apiCall();
+    const container = document.querySelector(".container");
+    data.forEach((row) => {
+      const card = renderCard(row);
+      container.appendChild(card);
+    });
+  };
 
-        const cardTitle = document.createElement("h5");
-        cardTitle.classList.add("card-title");
-        cardTitle.textContent = row.title;
-
-        const cardText = document.createElement("p");
-        cardText.classList.add("card-text");
-        cardText.innerHTML = row.body;
-
-        cardBody.appendChild(cardTitle);
-        cardBody.appendChild(cardText);
-        card.appendChild(cardBody);
-        container.appendChild(card);
-
-        // Add event listener to the card element
-        card.addEventListener("click", () => {
-          window.location.href = `details.html?id=${row.uuid}`;
+  const renderSuggestions = (data, searchTerm) => {
+    const suggestionsList = document.querySelector("#suggestions-list");
+    suggestionsList.innerHTML = "";
+    data.forEach((row) => {
+      if (row.title.toLowerCase().startsWith(searchTerm.toLowerCase())) {
+        const suggestion = document.createElement("li");
+        suggestion.classList.add("mb-2", "list-unstyled");
+        suggestion.textContent = row.title;
+        suggestion.addEventListener("click", () => {
+          searchInput.value = row.title;
+          suggestionsList.innerHTML = "";
         });
-      });
+        suggestionsList.appendChild(suggestion);
+      }
+    });
+  };
+
+  const renderSearchResult = async (searchTerm) => {
+    const data = await apiCall();
+    const suggestion = data.find(
+      (row) => row.title.toLowerCase() === searchTerm.toLowerCase()
+    );
+    if (suggestion) {
+      window.location.href = `details.html?id=${suggestion.uuid}`;
+    }
+  };
+
+  if (window.location.pathname === "/details.html") {
+    const params = new URLSearchParams(window.location.search);
+    renderDetailsPage(params).catch((error) => console.error(error));
+  } else {
+    renderHomePage().catch((error) => console.error(error));
+  }
+
+  const searchInput = document.querySelector("#inputBox");
+  if (searchInput) {
+    searchInput.addEventListener("input", async () => {
+      const searchTerm = searchInput.value.trim();
+      const data = await apiCall();
+      renderSuggestions(data, searchTerm);
     });
   }
-  //detail page script end
 
-  const searchInput = document.querySelector(".form-control");
-  const suggestionsList = document.querySelector("#suggestions-list");
-
-  searchInput.addEventListener("input", () => {
-    const searchTerm = searchInput.value.trim();
-    const url = `https://arghyam-be.tridz.in/api/search?title=${searchTerm}`;
-
-    fetch(url)
-      .then((response) => response.json())
-      .then((data) => {
-        suggestionsList.innerHTML = "";
-        data.rows.forEach((row) => {
-          if (row.title.toLowerCase().startsWith(searchTerm.toLowerCase())) {
-            const suggestion = document.createElement("li");
-            suggestion.classList.add("mb-2", "list-unstyled");
-            suggestion.textContent = row.title;
-            suggestion.addEventListener("click", () => {
-              searchInput.value = row.title;
-              // suggestionsList.innerHTML = "";
-          });
-            suggestionsList.appendChild(suggestion);
-          }
-        });
-      })
-      .catch((error) => console.log(error));
-  });
-
-    const sBtn = document.querySelector("#searchBtn");
-    sBtn.addEventListener("click", async () => {
+  const searchBtn = document.querySelector("#searchBtn");
+  if (searchBtn) {
+    searchBtn.addEventListener("click", async () => {
       const searchTerm = searchInput.value.trim();
-      const url = `https://arghyam-be.tridz.in/api/search?title=${searchTerm}`;
-    
-      fetch(url)
-        .then((response) => response.json())
-        .then((data) => {
-          const suggestion = data.rows.find(
-            (row) => row.title.toLowerCase() === searchTerm.toLowerCase()
-          );
-          if (suggestion) {
-            window.location.href = `details.html?id=${suggestion.uuid}`;
-          }
-        })
-        .catch((error) => console.log(error));
+      await renderSearchResult(searchTerm);
     });
-  
-  
-  
-}
+  }
+});
 
